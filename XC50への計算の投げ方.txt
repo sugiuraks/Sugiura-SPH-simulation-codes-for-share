@@ -1,0 +1,43 @@
+XC50への計算の投げ方
+
+1. コンパイル (必要ならコンパイル前にクリア:$ make clear)
+$ make
+
+2. 初期条件から計算を始めたいとき
+$ qsub FDPS-basalt-sphere-collision.sh
+
+3. 上のジョブが終わった後, 引き続き自動で計算を続けたいとき、予め以下のコマンドでジョブを投げておく。
+$ qsub -W depend=afterok:(前の計算のjob ID) mid-script.sh
+
+4. さらに計算を続けたいときは, 3.を必要なだけ繰り返す
+
+
+XC50にジョブを投げるとき使うシェルスクリプトの中身の意味
+
+--FDPS-basalt-sphere-collision.sh-------------------------
+#PBS -N sphere-col : ジョブの名前
+#PBS -l nodes=1    : 使用するノード数 (1ノード=40コア)
+#PBS -q large-t    : 並ぶキューの名前
+#PBS -j oe         : ???(おまじない)
+echo Working Directory is $PBS_O_WORKDIR : ???(おまじない)
+cd $PBS_O_WORKDIR  : ???(おまじない)
+export OMP_NUM_THREADS=20 : 使用するOpenMP並列数
+
+aprun -n 2 -N 2 -d ${OMP_NUM_THREADS} -cc depth ./sph.out FDPS-bsc-Rt=50km-q=1.0-theta=15-v=200ms-Ntot=100000-cartesian.bin FDPS-bsc-Rt=50km-q=1.0-theta=15-v=200ms-Ntot=100000-cartesian > tmp${PBS_JOBID%.*}.txt
+aprun : XC50で計算を投げるときに使用するコマンド
+-n 2 : 使用するMPI並列数
+-N 2 : 1ノードあたりのMPI並列数
+-d ${OMP_NUM_THREADS} -cc depth : OpenMP向けの指定
+第一引数 ./sph.out : 実行ファイル
+第二引数 FDPS-bsc-Rt=50km-q=1.0-theta=15-v=200ms-Ntot=100000-cartesian.bin : シミュレーションの初期条件ファイル
+第三引数 FDPS-bsc-Rt=50km-q=1.0-theta=15-v=200ms-Ntot=100000-cartesian : データを書き出すディレクトリ名(ここで指定したものが, シミュレーションのはじめに作成される)
+> tmp${PBS_JOBID%.*}.txt : 標準出力に出る情報が tmp(job ID).txt というファイルに出る
+----------------------------------------------------------
+
+--mid-script.sh-------------------------------------------
+同じ部分は省略
+
+aprun -n 2 -N 2 -d ${OMP_NUM_THREADS} -cc depth ./sph.out midfile.bin FDPS-bsc-Rt=50km-q=1.0-theta=15-v=200ms-Ntot=100000-cartesian > tmp${PBS_JOBID%.*}.txt
+第二引数だけ異なり midfile.bin となっている
+midfile.bin シミュレーションが終わるときに書き出すシミュレーションの中間条件ファイル
+----------------------------------------------------------
